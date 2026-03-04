@@ -48,6 +48,7 @@ impl LifecycleManager {
 
     /// Ensure the LSP client is running. Starts or restarts if needed.
     pub async fn ensure_client(&mut self) -> Result<&mut LspClient> {
+        #[allow(clippy::unnecessary_unwrap)]
         if self.client.is_some() && self.status == ServerStatus::Ready {
             return Ok(self.client.as_mut().unwrap());
         }
