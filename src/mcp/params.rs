@@ -1,4 +1,5 @@
 // MCP tool parameter types
+#![allow(dead_code)]
 
 use schemars::JsonSchema;
 use serde::Deserialize;

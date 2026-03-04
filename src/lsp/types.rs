@@ -1,4 +1,5 @@
 // LSP 3.17 type definitions — hand-rolled subset
+#![allow(dead_code)]
 
 use serde::{Deserialize, Serialize};
 
