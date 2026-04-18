@@ -33,6 +33,7 @@ rust_query('map')
 | `rust_query(q)` | Inspect the codebase — find, def, refs, symbols, diagnose, map |
 | `rust_session(action)` | Lifecycle — open, status, close |
 | `rust_help()` | Full reference card |
+| `enrich(path)` | Extract diagnostics and symbols from a single .rs file (no session required) |
 
 ### Verb Reference — Navigation
 

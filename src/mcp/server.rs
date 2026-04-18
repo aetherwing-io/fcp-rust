@@ -126,6 +126,29 @@ impl RustServer {
         let card = self.registry.generate_reference_card(Some(&extra));
         Ok(CallToolResult::success(vec![Content::text(card)]))
     }
+
+    #[tool(description = "Enrich a Rust source file with diagnostics (from cargo check) and symbols (top-level items). Takes an absolute file path, returns JSON with diagnostics and symbols arrays. Fast: warm cargo check <2s, symbols <100ms.")]
+    async fn enrich(
+        &self,
+        Parameters(p): Parameters<EnrichParams>,
+    ) -> Result<CallToolResult, McpError> {
+        // Run enrichment in a blocking task since cargo check is a subprocess
+        let path = p.path.clone();
+        let result = tokio::task::spawn_blocking(move || {
+            fcp_core::enrich::enrich(&path)
+        })
+        .await
+        .unwrap_or_else(|_| fcp_core::enrich::EnrichResult {
+            diagnostics: Vec::new(),
+            symbols: Vec::new(),
+        });
+
+        let json = serde_json::to_string_pretty(&result).unwrap_or_else(|_| {
+            r#"{"diagnostics":[],"symbols":[]}"#.to_string()
+        });
+
+        Ok(CallToolResult::success(vec![Content::text(json)]))
+    }
 }
 
 impl RustServer {
@@ -650,6 +673,45 @@ mod tests {
         let result = server.rust_session(Parameters(params)).await.unwrap();
         let text = get_text(&result);
         assert!(text.contains("empty session action"));
+    }
+
+    #[tokio::test]
+    async fn test_enrich_nonexistent_file() {
+        let server = RustServer::new();
+        let params = EnrichParams {
+            path: "/nonexistent/path/to/file.rs".to_string(),
+            content_hash: None,
+        };
+        let result = server.enrich(Parameters(params)).await.unwrap();
+        let text = get_text(&result);
+        // Should return valid JSON with empty arrays, not an error
+        let parsed: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert!(parsed["diagnostics"].as_array().unwrap().is_empty());
+        assert!(parsed["symbols"].as_array().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_enrich_returns_symbols() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("test.rs");
+        std::fs::write(
+            &file_path,
+            "fn main() {\n    println!(\"hello\");\n}\n\nstruct Config {\n    port: u16,\n}\n",
+        )
+        .unwrap();
+        let server = RustServer::new();
+        let params = EnrichParams {
+            path: file_path.to_str().unwrap().to_string(),
+            content_hash: None,
+        };
+        let result = server.enrich(Parameters(params)).await.unwrap();
+        let text = get_text(&result);
+        let parsed: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let symbols = parsed["symbols"].as_array().unwrap();
+        assert!(symbols.len() >= 2, "expected at least 2 symbols, got: {}", text);
+        let names: Vec<&str> = symbols.iter().filter_map(|s| s["name"].as_str()).collect();
+        assert!(names.contains(&"main"), "missing main in {:?}", names);
+        assert!(names.contains(&"Config"), "missing Config in {:?}", names);
     }
 
     fn get_text(result: &CallToolResult) -> String {

@@ -137,6 +137,13 @@ async fn handle_request(server: &RustServer, req: JsonRpcRequest) -> JsonRpcResp
             let model = server.model.lock().await;
             dispatch_query(&model, &server.registry, q).await
         }
+        "fcp.enrich" => {
+            let path = params.get("path").and_then(|v| v.as_str()).unwrap_or("");
+            let result = fcp_core::enrich::enrich(path);
+            serde_json::to_string(&result).unwrap_or_else(|_| {
+                r#"{"diagnostics":[],"symbols":[]}"#.to_string()
+            })
+        }
         _ => format!("unknown method: {}", req.method),
     };
 

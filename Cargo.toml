@@ -1,12 +1,13 @@
 [package]
 name = "fcp-rust"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 description = "MCP server for Rust codebases via rust-analyzer"
 repository = "https://github.com/os-tack/fcp-rust"
 license = "MIT"
 
 [dependencies]
+fcp-core = { path = "../fcp-core-rust" }
 rmcp = { version = "0.14", features = ["server", "macros", "transport-io"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }

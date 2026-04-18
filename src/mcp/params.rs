@@ -21,6 +21,16 @@ pub struct MutationParams {
     pub ops: Vec<String>,
 }
 
+#[allow(dead_code)] // content_hash reserved for future cache integration
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct EnrichParams {
+    /// Absolute path to a Rust source file to enrich with diagnostics and symbols.
+    pub path: String,
+    /// Optional content hash for caching — if the file hasn't changed, cached results may be returned faster.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_hash: Option<String>,
+}
+
 #[allow(dead_code)] // constructed via serde Deserialize
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct HelpParams {}

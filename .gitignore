@@ -6,3 +6,7 @@
 
 # Rust build artifacts
 /target/
+
+# test fixture build artifacts
+tests/fixtures/**/target/
+tests/fixtures/**/Cargo.lock
