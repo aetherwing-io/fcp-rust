@@ -382,24 +382,39 @@ async fn handle_symbols(
         format!("{}/{}", model.root_uri.as_str().trim_end_matches('/'), path)
     };
 
+    // Nudge rust-analyzer to load this file's symbol table. `documentSymbol`
+    // returns null (not an empty array) when the file hasn't been opened
+    // in LSP yet — that null then fails deserialization into `Vec<..>`.
+    // did_open is idempotent in rust-analyzer, so re-opening is safe.
+    if let Ok(file_path) = url::Url::parse(&uri).and_then(|u| u.to_file_path().map_err(|_| url::ParseError::RelativeUrlWithoutBase)) {
+        if let Ok(text) = std::fs::read_to_string(&file_path) {
+            let _ = client.did_open(&uri, &text).await;
+        }
+    }
+
     let params = serde_json::json!({
         "textDocument": {"uri": uri}
     });
 
-    // Try DocumentSymbol[] (hierarchical) first, fall back to SymbolInformation[] (flat)
+    // rust-analyzer may return null for `documentSymbol` when its per-file
+    // symbol table isn't populated yet (common right after a cold start
+    // even though `Status: ready`). We deserialize into `Option<Vec<..>>`
+    // so null → None → empty list, instead of the "invalid type: null,
+    // expected a sequence" deserialization failure. Same for the
+    // SymbolInformation fallback.
     match client
-        .request::<Vec<DocumentSymbol>>("textDocument/documentSymbol", params.clone())
+        .request::<Option<Vec<DocumentSymbol>>>("textDocument/documentSymbol", params.clone())
         .await
     {
-        Ok(symbols) => format_symbol_outline(&uri, &symbols, 0),
+        Ok(symbols) => format_symbol_outline(&uri, &symbols.unwrap_or_default(), 0),
         Err(_) => {
-            // Fallback: server may return SymbolInformation[] instead
             match client
-                .request::<Vec<SymbolInformation>>("textDocument/documentSymbol", params)
+                .request::<Option<Vec<SymbolInformation>>>("textDocument/documentSymbol", params)
                 .await
             {
                 Ok(symbols) => {
                     let doc_symbols: Vec<DocumentSymbol> = symbols
+                        .unwrap_or_default()
                         .iter()
                         .map(|s| DocumentSymbol {
                             name: s.name.clone(),
